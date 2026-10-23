@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISUZU Traceability & IoT Dashboard - KNUCKLE Robot Inspection</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font: Prompt -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        isuzu: {
+                            red: '#ED1C24',
+                            darkred: '#B80D13',
+                            dark: '#0F172A',
+                            panel: '#1E293B',
+                            card: '#334155',
+                            border: '#475569'
+                        }
+                    },
+                    fontFamily: {
+                        prompt: ['Prompt', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #0B0F17;
+            color: #F8FAFC;
+            user-select: none;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0F172A;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Conveyor Animation */
+        @keyframes conveyor-move {
+            0% { background-position: 0 0; }
+            100% { background-position: 40px 0; }
+        }
+        .conveyor-belt {
+            background: repeating-linear-gradient(90deg, #1E293B, #1E293B 20px, #334155 20px, #334155 40px);
+            animation: conveyor-move 1.8s linear infinite;
+        }
+
+        /* Pulse Animation */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.97); opacity: 0.9; }
+            50% { transform: scale(1.03); opacity: 0.5; }
+            100% { transform: scale(0.97); opacity: 0.9; }
+        }
+        .pulse-active {
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between text-slate-100">
+
+    <!-- TOP HEADER / NAVBAR -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <!-- Brand Logo & Title -->
+                <div class="flex items-center space-x-4">
+                    <div class="bg-isuzu-red text-white font-black text-2xl tracking-tighter px-3.5 py-1.5 rounded-lg shadow-lg border border-red-500">
+                        ISUZU
+                    </div>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl font-extrabold text-white tracking-wide">TRACEABILITY & IOT DASHBOARD</h1>
+                        <p class="text-xs text-slate-400 flex flex-wrap items-center gap-2">
+                            <span><i class="fa-solid fa-microchip text-red-500"></i> Keyence KV-8000 PLC</span> | 
+                            <span><i class="fa-solid fa-robot text-blue-400"></i> NACHI MZ12 (x3)</span> | 
+                            <span><i class="fa-solid fa-camera text-emerald-400"></i> Keyence LJ-S040 (x3)</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Cloud Connection Status & Real-time Clock -->
+                <div class="hidden lg:flex items-center space-x-6">
+                    <div class="bg-slate-800/90 px-4 py-2 rounded-xl border border-slate-700 flex items-center space-x-3 shadow-inner">
+                        <div class="relative flex h-3 w-3">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        </div>
+                        <div>
+                            <div class="text-[11px] text-slate-400">ISUZU Cloud Sync</div>
+                            <div class="text-xs font-bold text-emerald-400">ONLINE (KV-8000 Connected)</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div id="liveClock" class="text-xl font-mono font-bold text-slate-100">17:20:00</div>
+                        <div id="liveDate" class="text-xs text-slate-400">23 ต.ค. 2026</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5 MAIN NAVIGATION TABS -->
+            <div class="grid grid-cols-5 gap-1.5 mt-1 border-t border-slate-800 pt-2 pb-2">
+                <button onclick="switchTab('tab1')" id="nav-tab1" class="tab-btn py-2.5 px-2 rounded-lg font-bold text-xs sm:text-sm transition flex flex-col sm:flex-row items-center justify-center space-x-0 sm:space-x-2 bg-isuzu-red text-white shadow-lg">
+                    <i class="fa-solid fa-diagram-project text-base mb-1 sm:mb-0"></i>
+                    <span class="text-center">1. Conveyor Flow</span>
+                </button>
+                <button onclick="switchTab('tab2')" id="nav-tab2" class="tab-btn py-2.5 px-2 rounded-lg font-bold text-xs sm:text-sm transition flex flex-col sm:flex-row items-center justify-center space-x-0 sm:space-x-2 bg-slate-800 text-slate-300 hover:bg-slate-700">
+                    <i class="fa-solid fa-magnifying-glass text-base mb-1 sm:mb-0"></i>
+                    <span class="text-center">2. ค้นหา Part</span>
+                </button>
+                <button onclick="switchTab('tab3')" id="nav-tab3" class="tab-btn py-2.5 px-2 rounded-lg font-bold text-xs sm:text-sm transition flex flex-col sm:flex-row items-center justify-center space-x-0 sm:space-x-2 bg-slate-800 text-slate-300 hover:bg-slate-700">
+                    <i class="fa-solid fa-table-list text-base mb-1 sm:mb-0"></i>
+                    <span class="text-center">3. ข้อมูลการวัด 40 จุด</span>
+                </button>
+                <button onclick="switchTab('tab4')" id="nav-tab4" class="tab-btn py-2.5 px-2 rounded-lg font-bold text-xs sm:text-sm transition flex flex-col sm:flex-row items-center justify-center space-x-0 sm:space-x-2 bg-slate-800 text-slate-300 hover:bg-slate-700">
+                    <i class="fa-solid fa-gauge-high text-base mb-1 sm:mb-0 text-amber-400"></i>
+                    <span class="text-center">4. IoT Monitoring</span>
+                </button>
+                <button onclick="switchTab('tab5')" id="nav-tab5" class="tab-btn py-2.5 px-2 rounded-lg font-bold text-xs sm:text-sm transition flex flex-col sm:flex-row items-center justify-center space-x-0 sm:space-x-2 bg-slate-800 text-slate-300 hover:bg-slate-700">
+                    <i class="fa-solid fa-triangle-exclamation text-base mb-1 sm:mb-0 text-red-400"></i>
+                    <span class="text-center">5. Alarm History</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+        <!-- ==================== TAB 1: CONVEYOR FLOW & LIVE INSPECTION ==================== -->
+        <section id="tab1" class="tab-content space-y-6">
+            <!-- Production Statistics -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="glass-panel p-4 rounded-xl flex items-center space-x-4 border-l-4 border-blue-500">
+                    <div class="p-3 bg-blue-500/20 text-blue-400 rounded-lg">
+                        <i class="fa-solid fa-boxes-stacked text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400">ยอดตรวจสอบวันนี้</p>
+                        <p id="statTotal" class="text-2xl font-bold text-white">452 <span class="text-xs text-slate-400 font-normal">ชิ้น</span></p>
+                    </div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl flex items-center space-x-4 border-l-4 border-emerald-500">
+                    <div class="p-3 bg-emerald-500/20 text-emerald-400 rounded-lg">
+                        <i class="fa-solid fa-circle-check text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400">ชิ้นงานผ่าน (OK)</p>
+                        <p id="statOk" class="text-2xl font-bold text-emerald-400">438 <span class="text-xs text-slate-400 font-normal">(96.9%)</span></p>
+                    </div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl flex items-center space-x-4 border-l-4 border-red-500">
+                    <div class="p-3 bg-red-500/20 text-red-400 rounded-lg">
+                        <i class="fa-solid fa-circle-xmark text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400">ชิ้นงานไม่ผ่าน (NG)</p>
+                        <p id="statNg" class="text-2xl font-bold text-red-400">14 <span class="text-xs text-slate-400 font-normal">(3.1%)</span></p>
+                    </div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl flex items-center space-x-4 border-l-4 border-amber-500">
+                    <div class="p-3 bg-amber-500/20 text-amber-400 rounded-lg">
+                        <i class="fa-solid fa-stopwatch text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400">Tact Time เฉลี่ย</p>
+                        <p class="text-2xl font-bold text-amber-400">18.2 <span class="text-xs text-slate-400 font-normal">วินาที</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conveyor Visual Pipeline -->
+            <div class="glass-panel p-6 rounded-2xl relative overflow-hidden shadow-2xl">
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-route text-isuzu-red"></i>
+                            สถานะการเคลื่อนที่ชิ้นงานบน Conveyor (Real-time Flow)
+                        </h2>
+                        <p class="text-xs text-slate-400">คลิกที่ชิ้นงานบน Robot Station เพื่อเปิดดูค่าการวัดทั้ง 40 จุดแบบ Real-time</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-medium">
+                            <i class="fa-solid fa-wifi text-xs text-emerald-400"></i> RFID OMRON V680S Ready
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Animated Conveyor Pipeline -->
+                <div class="relative py-8 px-2 overflow-x-auto">
+                    <!-- Conveyor Belt Graphic Background -->
+                    <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-16 conveyor-belt rounded-lg opacity-40"></div>
+
+                    <!-- Stations Container -->
+                    <div class="relative z-10 grid grid-cols-4 gap-4 min-w-[800px]">
+
+                        <!-- STAGE 1: RFID READER -->
+                        <div class="bg-slate-900/90 border-2 border-slate-700 rounded-xl p-4 flex flex-col items-center shadow-lg relative">
+                            <div class="absolute -top-3 bg-slate-800 text-slate-300 text-xs px-3 py-0.5 rounded-full font-semibold border border-slate-600">
+                                Stage 1
+                            </div>
+                            <div class="text-blue-400 text-2xl my-2">
+                                <i class="fa-solid fa-id-card"></i>
+                            </div>
+                            <h3 class="font-bold text-sm text-center text-white">RFID Reader</h3>
+                            <p class="text-[11px] text-slate-400 text-center mb-3">OMRON V680S-HMD64-EIP</p>
+                            
+                            <div class="w-full bg-slate-800 rounded-lg p-3 border border-slate-700 text-center">
+                                <span class="inline-block px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-mono rounded mb-1">
+                                    อ่าน Part & Jig ID
+                                </span>
+                                <div class="font-mono text-sm font-bold text-slate-100" id="s1-part-no">KNC-2026-9050</div>
+                                <div class="text-xs text-slate-400 font-mono" id="s1-jig-no">JIG-A08</div>
+                            </div>
+                        </div>
+
+                        <!-- STAGE 2: ROBOT STATION 1 -->
+                        <div class="bg-slate-900/90 border-2 border-blue-500/50 rounded-xl p-4 flex flex-col items-center shadow-lg relative">
+                            <div class="absolute -top-3 bg-blue-600 text-white text-xs px-3 py-0.5 rounded-full font-bold">
+                                Station 1
+                            </div>
+                            <div class="text-red-500 text-2xl my-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-robot"></i>
+                                <i class="fa-solid fa-camera text-xs text-emerald-400"></i>
+                            </div>
+                            <h3 class="font-bold text-sm text-center text-white">NACHI Robot 1</h3>
+                            <p class="text-[11px] text-slate-400 text-center mb-3">LJ-S040 Sensor #1</p>
+                            
+                            <!-- Active Part -->
+                            <div onclick="openRealtimeModal('ROBOT-01')" class="w-full bg-emerald-950/50 border-2 border-emerald-500 rounded-lg p-3 text-center cursor-pointer hover:scale-105 transition shadow-lg pulse-active">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-[9px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded">INSPECTING</span>
+                                    <i class="fa-solid fa-expand text-slate-400 text-xs"></i>
+                                </div>
+                                <div class="font-mono text-sm font-bold text-white">KNC-2026-9049</div>
+                                <div class="text-xs text-slate-300 font-mono">JIG-B03</div>
+                                <div class="mt-2 text-left">
+                                    <div class="flex justify-between text-[10px] text-slate-300 mb-0.5">
+                                        <span>วัดจุดที่: <strong id="r1-progress-num">35</strong>/40</span>
+                                        <span class="text-emerald-400 font-bold">88%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                        <div id="r1-progress-bar" class="bg-emerald-500 h-1.5 rounded-full" style="width: 88%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STAGE 3: ROBOT STATION 2 -->
+                        <div class="bg-slate-900/90 border-2 border-blue-500/50 rounded-xl p-4 flex flex-col items-center shadow-lg relative">
+                            <div class="absolute -top-3 bg-blue-600 text-white text-xs px-3 py-0.5 rounded-full font-bold">
+                                Station 2
+                            </div>
+                            <div class="text-red-500 text-2xl my-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-robot"></i>
+                                <i class="fa-solid fa-camera text-xs text-emerald-400"></i>
+                            </div>
+                            <h3 class="font-bold text-sm text-center text-white">NACHI Robot 2</h3>
+                            <p class="text-[11px] text-slate-400 text-center mb-3">LJ-S040 Sensor #2</p>
+                            
+                            <!-- Active Part -->
+                            <div onclick="openRealtimeModal('ROBOT-02')" class="w-full bg-emerald-950/40 border-2 border-emerald-500 rounded-lg p-3 text-center cursor-pointer hover:scale-105 transition shadow-lg">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-[9px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded">PASSED (OK)</span>
+                                    <i class="fa-solid fa-expand text-slate-400 text-xs"></i>
+                                </div>
+                                <div class="font-mono text-sm font-bold text-white">KNC-2026-9048</div>
+                                <div class="text-xs text-slate-300 font-mono">JIG-A02</div>
+                                <div class="mt-2 text-left">
+                                    <div class="flex justify-between text-[10px] text-slate-300 mb-0.5">
+                                        <span>วัดจุดที่: 40/40</span>
+                                        <span class="text-emerald-400 font-bold">100%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                        <div class="bg-emerald-500 h-1.5 rounded-full" style="width: 100%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STAGE 4: ROBOT STATION 3 -->
+                        <div class="bg-slate-900/90 border-2 border-blue-500/50 rounded-xl p-4 flex flex-col items-center shadow-lg relative">
+                            <div class="absolute -top-3 bg-blue-600 text-white text-xs px-3 py-0.5 rounded-full font-bold">
+                                Station 3
+                            </div>
+                            <div class="text-red-500 text-2xl my-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-robot"></i>
+                                <i class="fa-solid fa-camera text-xs text-emerald-400"></i>
+                            </div>
+                            <h3 class="font-bold text-sm text-center text-white">NACHI Robot 3</h3>
+                            <p class="text-[11px] text-slate-400 text-center mb-3">LJ-S040 Sensor #3</p>
+                            
+                            <!-- Active Part -->
+                            <div onclick="openRealtimeModal('ROBOT-03')" class="w-full bg-red-950/40 border-2 border-red-500 rounded-lg p-3 text-center cursor-pointer hover:scale-105 transition shadow-lg">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-[9px] bg-red-500 text-white font-black px-1.5 py-0.5 rounded">FAILED (NG)</span>
+                                    <i class="fa-solid fa-expand text-slate-400 text-xs"></i>
+                                </div>
+                                <div class="font-mono text-sm font-bold text-white">KNC-2026-9047</div>
+                                <div class="text-xs text-slate-300 font-mono">JIG-C01</div>
+                                <div class="mt-2 text-left">
+                                    <div class="flex justify-between text-[10px] text-slate-300 mb-0.5">
+                                        <span>พบ NG ที่จุด P14, P28</span>
+                                        <span class="text-red-400 font-bold">40/40</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                        <div class="bg-red-500 h-1.5 rounded-full" style="width: 100%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Processed Log Table -->
+            <div class="glass-panel rounded-2xl p-6 shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-base text-white flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>
+                        การตรวจสอบล่าสุดในสายการผลิต (Recent Processed Items)
+                    </h3>
+                    <button onclick="switchTab('tab3')" class="text-xs text-blue-400 hover:text-blue-300 font-semibold">ดูประวัติทั้งหมด &rarr;</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-800/80 text-slate-300 uppercase text-xs font-semibold">
+                            <tr>
+                                <th class="p-3">เวลา</th>
+                                <th class="p-3">Part No. (RFID)</th>
+                                <th class="p-3">Jig No.</th>
+                                <th class="p-3">Robot Station</th>
+                                <th class="p-3 text-center">ผลการวัด (40 จุด)</th>
+                                <th class="p-3 text-center">สถานะรวม</th>
+                                <th class="p-3 text-right">การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentLogsTable" class="divide-y divide-slate-800 text-slate-200">
+                            <!-- Dynamic Content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 2: PART SEARCH ==================== -->
+        <section id="tab2" class="tab-content space-y-6 hidden">
+            <div class="glass-panel p-8 rounded-2xl shadow-2xl">
+                <div class="max-w-2xl mx-auto text-center space-y-4">
+                    <div class="inline-block bg-red-500/10 text-isuzu-red rounded-full px-4 py-1 text-xs font-bold border border-red-500/20">
+                        <i class="fa-solid fa-magnifying-glass mr-1"></i> ระบบค้นหาข้อมูลย้อนหลัง (Traceability Search)
+                    </div>
+                    <h2 class="text-2xl font-bold text-white">ค้นหาชิ้นงาน KNUCKLE ด้วย Part No. หรือ Jig No.</h2>
+                    <p class="text-xs text-slate-400">กรอกหมายเลข Part No. หรือ Jig No. เพื่อเรียกดูประวัติค่าการวัดย้อนหลังทั้ง 40 จุดอย่างละเอียด</p>
+
+                    <!-- Search Input Box -->
+                    <div class="flex items-center gap-2 pt-2">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-barcode absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                            <input type="text" id="searchInput" placeholder="เช่น KNC-2026-9049 หรือ JIG-A02" class="w-full bg-slate-900 border-2 border-slate-700 rounded-xl pl-12 pr-4 py-3 text-white text-lg font-mono focus:border-isuzu-red focus:outline-none transition">
+                        </div>
+                        <button onclick="performSearch()" class="bg-isuzu-red hover:bg-isuzu-darkred text-white px-6 py-3 rounded-xl font-bold text-base shadow-lg transition flex items-center gap-2">
+                            <i class="fa-solid fa-search"></i> ค้นหา
+                        </button>
+                    </div>
+
+                    <!-- Quick Suggestions -->
+                    <div class="flex items-center justify-center gap-2 text-xs text-slate-400 pt-1">
+                        <span>ตัวอย่างการค้นหา:</span>
+                        <button onclick="fillSearch('KNC-2026-9049')" class="underline hover:text-slate-200 font-mono">KNC-2026-9049</button>
+                        <button onclick="fillSearch('KNC-2026-9047')" class="underline hover:text-slate-200 font-mono">KNC-2026-9047</button>
+                        <button onclick="fillSearch('JIG-A02')" class="underline hover:text-slate-200 font-mono">JIG-A02</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Result Container -->
+            <div id="searchResults" class="space-y-4 hidden">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-list-check text-emerald-400"></i> ผลการค้นหาข้อมูล
+                </h3>
+                <div id="searchCardsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Cards will be dynamically inserted here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 3: DATA HISTORY & 40 POINT DETAILS ==================== -->
+        <section id="tab3" class="tab-content space-y-6 hidden">
+            <!-- Filter Options -->
+            <div class="glass-panel p-4 rounded-xl flex flex-wrap gap-4 items-center justify-between shadow-lg">
+                <div class="flex flex-wrap gap-3 items-center">
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">วันที่ต้องการดู</label>
+                        <input type="date" id="filterDate" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">เลือก Robot Station</label>
+                        <select id="filterRobot" onchange="applyFilters()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+                            <option value="ALL">ทั้งหมด (Robot 1 - 3)</option>
+                            <option value="ROBOT-01">Station Robot 1</option>
+                            <option value="ROBOT-02">Station Robot 2</option>
+                            <option value="ROBOT-03">Station Robot 3</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">สถานะผลการวัด</label>
+                        <select id="filterStatus" onchange="applyFilters()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+                            <option value="ALL">ทั้งหมด (OK & NG)</option>
+                            <option value="OK">เฉพาะ OK (ผ่าน)</option>
+                            <option value="NG">เฉพาะ NG (ไม่ผ่าน)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow">
+                        <i class="fa-solid fa-file-excel"></i> ส่งออกไฟล์ CSV / Excel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Historical Table -->
+            <div class="glass-panel rounded-2xl p-6 shadow-2xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-800 text-slate-300 uppercase text-xs font-semibold">
+                            <tr>
+                                <th class="p-3">วันที่ / เวลา</th>
+                                <th class="p-3">Part No. (RFID)</th>
+                                <th class="p-3">Jig No.</th>
+                                <th class="p-3">Station</th>
+                                <th class="p-3 text-center">สรุปผลการวัด (40 จุด)</th>
+                                <th class="p-3 text-center">สถานะรวม</th>
+                                <th class="p-3 text-center">ดูรายละเอียด</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody" class="divide-y divide-slate-800 text-slate-200">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 4: IOT MONITORING ==================== -->
+        <section id="tab4" class="tab-content space-y-6 hidden">
+
+            <!-- Hardware Overview Status Bar -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-emerald-500 flex justify-between items-center">
+                    <div>
+                        <div class="text-xs text-slate-400">PLC Controller</div>
+                        <div class="text-base font-bold text-white">KEYENCE KV-8000</div>
+                        <div class="text-[11px] text-emerald-400 font-mono">RUN Mode (Scan: 1.2ms)</div>
+                    </div>
+                    <i class="fa-solid fa-microchip text-3xl text-emerald-500/40"></i>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-blue-500 flex justify-between items-center">
+                    <div>
+                        <div class="text-xs text-slate-400">RFID Antenna Status</div>
+                        <div class="text-base font-bold text-white">OMRON V680S</div>
+                        <div class="text-[11px] text-blue-400 font-mono">EtherNet/IP Connected</div>
+                    </div>
+                    <i class="fa-solid fa-wifi text-3xl text-blue-500/40"></i>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-purple-500 flex justify-between items-center">
+                    <div>
+                        <div class="text-xs text-slate-400">ISUZU Cloud Database</div>
+                        <div class="text-base font-bold text-white">Auto Sync Data</div>
+                        <div class="text-[11px] text-purple-400 font-mono">Sync Interval: Real-time</div>
+                    </div>
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-purple-500/40"></i>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-amber-500 flex justify-between items-center">
+                    <div>
+                        <div class="text-xs text-slate-400">ตู้ควบคุมอุณหภูมิสูงสุด</div>
+                        <div class="text-base font-bold text-white">Station 3 Cabinet</div>
+                        <div class="text-[11px] text-amber-400 font-mono font-bold">41.8 °C (Warning)</div>
+                    </div>
+                    <i class="fa-solid fa-temperature-high text-3xl text-amber-500/40"></i>
+                </div>
+            </div>
+
+            <!-- ROBOTS & CAMERAS IOT MATRIX (3 STATIONS) -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <!-- STATION 1 IOT CARD -->
+                <div class="glass-panel p-6 rounded-2xl space-y-4 border border-slate-700">
+                    <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                        <div>
+                            <span class="text-xs text-blue-400 font-bold">STATION 1</span>
+                            <h3 class="text-lg font-bold text-white">NACHI MZ12 + LJ-S040 #1</h3>
+                        </div>
+                        <span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold rounded-full">
+                            <i class="fa-solid fa-circle text-[8px] mr-1"></i> RUNNING
+                        </span>
+                    </div>
+
+                    <!-- Robot Status Specs -->
+                    <div class="space-y-2">
+                        <div class="text-xs font-bold text-slate-300">สถานะหุ่นยนต์ (NACHI MZ12)</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                            <div class="bg-slate-900 p-2 rounded">โหมด: <span class="text-emerald-400 font-bold">AUTO</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Cycle Time: <span class="text-white">18.1s</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Motor Load: <span class="text-slate-200">42%</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Servo Temp: <span class="text-slate-200">38.5°C</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Camera LJ-S040 Status -->
+                    <div class="space-y-2">
+                        <div class="text-xs font-bold text-slate-300">กล้อง Keyence LJ-S040</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                            <div class="bg-slate-900 p-2 rounded">Sensor Head: <span class="text-emerald-400 font-bold">34.2°C</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Lens Clean: <span class="text-emerald-400 font-bold">98% (ดี)</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Control Cabinet Temperature Gauge -->
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700 space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-400">อุณหภูมิตู้คอนโทรลเลอร์</span>
+                            <span class="font-mono font-bold text-emerald-400">36.5 °C (ปกติ)</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div class="bg-emerald-500 h-2 rounded-full" style="width: 52%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                            <span>0°C</span>
+                            <span>เกณฑ์เตือน: 40°C</span>
+                            <span>60°C</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STATION 2 IOT CARD -->
+                <div class="glass-panel p-6 rounded-2xl space-y-4 border border-slate-700">
+                    <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                        <div>
+                            <span class="text-xs text-blue-400 font-bold">STATION 2</span>
+                            <h3 class="text-lg font-bold text-white">NACHI MZ12 + LJ-S040 #2</h3>
+                        </div>
+                        <span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold rounded-full">
+                            <i class="fa-solid fa-circle text-[8px] mr-1"></i> RUNNING
+                        </span>
+                    </div>
+
+                    <!-- Robot Status Specs -->
+                    <div class="space-y-2">
+                        <div class="text-xs font-bold text-slate-300">สถานะหุ่นยนต์ (NACHI MZ12)</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                            <div class="bg-slate-900 p-2 rounded">โหมด: <span class="text-emerald-400 font-bold">AUTO</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Cycle Time: <span class="text-white">18.4s</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Motor Load: <span class="text-slate-200">46%</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Servo Temp: <span class="text-slate-200">39.1°C</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Camera LJ-S040 Status -->
+                    <div class="space-y-2">
+                        <div class="text-xs font-bold text-slate-300">กล้อง Keyence LJ-S040</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                            <div class="bg-slate-900 p-2 rounded">Sensor Head: <span class="text-emerald-400 font-bold">35.8°C</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Lens Clean: <span class="text-emerald-400 font-bold">95% (ดี)</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Control Cabinet Temperature Gauge -->
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700 space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-400">อุณหภูมิตู้คอนโทรลเลอร์</span>
+                            <span class="font-mono font-bold text-emerald-400">38.2 °C (ปกติ)</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div class="bg-emerald-500 h-2 rounded-full" style="width: 61%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                            <span>0°C</span>
+                            <span>เกณฑ์เตือน: 40°C</span>
+                            <span>60°C</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STATION 3 IOT CARD (WITH TEMP WARNING) -->
+                <div class="glass-panel p-6 rounded-2xl space-y-4 border-2 border-amber-500/50">
+                    <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                        <div>
+                            <span class="text-xs text-amber-400 font-bold">STATION 3</span>
+                            <h3 class="text-lg font-bold text-white">NACHI MZ12 + LJ-S040 #3</h3>
+                        </div>
+                        <span class="px-2.5 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-full">
+                            <i class="fa-solid fa-triangle-exclamation text-xs mr-1"></i> TEMP ALERT
+                        </span>
+                    </div>
+
+                    <!-- Robot Status Specs -->
+                    <div class="space-y-2">
+                        <div class="text-xs font-bold text-slate-300">สถานะหุ่นยนต์ (NACHI MZ12)</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                            <div class="bg-slate-900 p-2 rounded">โหมด: <span class="text-emerald-400 font-bold">AUTO</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Cycle Time: <span class="text-white">18.5s</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Motor Load: <span class="text-amber-400 font-bold">61%</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Servo Temp: <span class="text-amber-400 font-bold">44.2°C</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Camera LJ-S040 Status -->
+                    <div class="space-y-2">
+                        <div class="text-xs font-bold text-slate-300">กล้อง Keyence LJ-S040</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                            <div class="bg-slate-900 p-2 rounded">Sensor Head: <span class="text-amber-400 font-bold">39.1°C</span></div>
+                            <div class="bg-slate-900 p-2 rounded">Lens Clean: <span class="text-amber-400 font-bold">88% (ควรทำความสะอาด)</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Control Cabinet Temperature Gauge (HIGH TEMP ALERT) -->
+                    <div class="bg-amber-950/30 p-3 rounded-xl border border-amber-500/50 space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-amber-300 font-bold"><i class="fa-solid fa-temperature-arrow-up mr-1"></i> อุณหภูมิตู้คอนโทรลเลอร์</span>
+                            <span class="font-mono font-bold text-amber-400">41.8 °C (สูงกว่าเกณฑ์)</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div class="bg-amber-500 h-2 rounded-full" style="width: 78%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-amber-400 font-mono">
+                            <span>0°C</span>
+                            <span class="font-bold">เตือน > 40°C</span>
+                            <span>60°C</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ==================== TAB 5: ALARM HISTORY ==================== -->
+        <section id="tab5" class="tab-content space-y-6 hidden">
+            <!-- Filter Bar -->
+            <div class="glass-panel p-4 rounded-xl flex flex-wrap gap-4 items-center justify-between shadow-lg">
+                <div class="flex flex-wrap gap-3 items-center">
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">เลือก Station / อุปกรณ์</label>
+                        <select id="alarmStationFilter" onchange="renderAlarms()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+                            <option value="ALL">ทั้งหมดทุกสถานะ</option>
+                            <option value="STATION-1">Station 1 (Robot 1 / Sensor 1)</option>
+                            <option value="STATION-2">Station 2 (Robot 2 / Sensor 2)</option>
+                            <option value="STATION-3">Station 3 (Robot 3 / Sensor 3)</option>
+                            <option value="PLC">Keyence KV-8000 PLC</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">ระดับความรุนแรง (Severity)</label>
+                        <select id="alarmSeverityFilter" onchange="renderAlarms()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+                            <option value="ALL">ทุกระดับ (Warning / Critical)</option>
+                            <option value="WARNING">เฉพาะ Warning (เตือน)</option>
+                            <option value="CRITICAL">เฉพาะ Critical (วิกฤต)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <button onclick="exportAlarmCSV()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow">
+                        <i class="fa-solid fa-file-csv"></i> ส่งออกรายงาน Alarm CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alarm Log Table -->
+            <div class="glass-panel rounded-2xl p-6 shadow-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-base text-white flex items-center gap-2">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+                        ประวัติการแจ้งเตือนและการทำงานผิดปกติ (Machine Alarm Log)
+                    </h3>
+                    <span id="alarmCountBadge" class="text-xs px-2.5 py-1 bg-slate-800 text-slate-300 rounded-full border border-slate-700">
+                        รวม 6 รายการ
+                    </span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-800 text-slate-300 uppercase text-xs font-semibold">
+                            <tr>
+                                <th class="p-3">วันที่ / เวลา</th>
+                                <th class="p-3">อุปกรณ์ / Station</th>
+                                <th class="p-3">Code</th>
+                                <th class="p-3">รายละเอียดการ Alarm</th>
+                                <th class="p-3 text-center">ระดับความรุนแรง</th>
+                                <th class="p-3 text-center">ระยะเวลา</th>
+                                <th class="p-3 text-right">สถานะแก้ไข</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alarmTableBody" class="divide-y divide-slate-800 text-slate-200 font-mono text-xs">
+                            <!-- Dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+        <p>ISUZU Motors Thailand &copy; 2026 | Traceability & IoT Inspection System for KNUCKLE Part | Powered by Keyence KV-8000 PLC & NACHI MZ12</p>
+    </footer>
+
+    <!-- ==================== MODAL: 40-POINT DETAILED INSPECTION VIEW ==================== -->
+    <div id="detailModal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            <!-- Modal Header -->
+            <div class="p-5 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+                <div>
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-xl font-bold text-white">รายละเอียดการวัดชิ้นงาน KNUCKLE (40 Points Matrix)</h2>
+                        <span id="mOverallBadge" class="px-3 py-1 text-xs font-bold rounded-full bg-emerald-500 text-slate-950">
+                            PASSED (OK)
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Part No: <span id="mPartNo" class="text-white font-mono font-bold">KNC-2026-9049</span> | 
+                        Jig No: <span id="mJigNo" class="text-white font-mono">JIG-B03</span> | 
+                        Station: <span id="mRobot" class="text-blue-400 font-bold">NACHI Robot 1</span> |
+                        เวลาที่ทำการวัด: <span id="mTimestamp" class="text-slate-300">2026-10-23 17:15:22</span>
+                    </p>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white p-2 text-2xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content Grid -->
+            <div class="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <!-- LEFT SIDE: Interactive 2D KNUCKLE SVG Diagram & Selected Point Card -->
+                <div class="lg:col-span-5 space-y-4 flex flex-col">
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 relative flex flex-col items-center justify-center min-h-[250px]">
+                        <span class="absolute top-3 left-3 text-[11px] bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded border border-slate-700 font-semibold">
+                            <i class="fa-solid fa-crosshairs mr-1 text-red-400"></i> KNUCKLE 2D Spatial Map
+                        </span>
+
+                        <!-- SVG Knuckle Diagram -->
+                        <svg viewBox="0 0 300 240" class="w-full h-56 max-w-xs drop-shadow-lg">
+                            <path d="M 60,70 L 120,40 L 220,50 L 260,110 L 240,180 L 180,210 L 90,190 L 40,130 Z" fill="#334155" stroke="#64748B" stroke-width="3"/>
+                            <circle cx="150" cy="125" r="35" fill="#0F172A" stroke="#94A3B8" stroke-width="3" />
+                            <circle cx="150" cy="125" r="20" fill="#1E293B" />
+                            <circle cx="80" cy="70" r="10" fill="#1E293B" stroke="#64748B" stroke-width="2"/>
+                            <circle cx="230" cy="80" r="10" fill="#1E293B" stroke="#64748B" stroke-width="2"/>
+                            <circle cx="210" cy="180" r="10" fill="#1E293B" stroke="#64748B" stroke-width="2"/>
+
+                            <!-- Target Highlight Ring for Selected Point -->
+                            <g id="svgHighlightGroup">
+                                <circle id="svgTargetCircle" cx="150" cy="125" r="14" fill="none" stroke="#ED1C24" stroke-width="3" class="animate-ping" />
+                                <circle id="svgTargetDot" cx="150" cy="125" r="6" fill="#ED1C24" />
+                            </g>
+                        </svg>
+
+                        <p class="text-[11px] text-slate-400 text-center mt-1">
+                            ตำแหน่งพิกัดจุดการวัดที่เลือกจะกระพริบบนไดอะแกรมชิ้นงาน
+                        </p>
+                    </div>
+
+                    <!-- Selected Point Specs -->
+                    <div id="pointDetailCard" class="bg-slate-800/90 border-2 border-blue-500/50 p-4 rounded-xl flex-1 space-y-3">
+                        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                            <h4 id="pdTitle" class="font-bold text-blue-400 text-base">Point #1 : Main Bore Diameter</h4>
+                            <span id="pdStatus" class="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">OK</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div class="bg-slate-900 p-2.5 rounded-lg">
+                                <span class="text-xs text-slate-400 block">ค่าที่กำหนด (Nominal)</span>
+                                <span id="pdNominal" class="font-mono font-bold text-slate-200">45.000 mm</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-lg">
+                                <span class="text-xs text-slate-400 block">เกณฑ์คลาดเคลื่อน</span>
+                                <span id="pdTolerance" class="font-mono font-bold text-slate-200">± 0.050 mm</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-lg col-span-2">
+                                <span class="text-xs text-slate-400 block">ค่าที่วัดได้จริง (Keyence LJ-S040)</span>
+                                <span id="pdMeasured" class="font-mono text-xl font-extrabold text-emerald-400">45.012 mm</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT SIDE: 40 Inspection Points Grid -->
+                <div class="lg:col-span-7 flex flex-col">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-sm text-slate-200">ตารางแสดงจุดตรวจสอบทั้ง 40 จุด (คลิกจุดเพื่อดูพิกัด)</h3>
+                        <div class="flex gap-3 text-xs">
+                            <span class="flex items-center gap-1 text-emerald-400"><i class="fa-solid fa-square"></i> OK</span>
+                            <span class="flex items-center gap-1 text-red-400"><i class="fa-solid fa-square"></i> NG</span>
+                        </div>
+                    </div>
+
+                    <!-- 40 Points Grid Container -->
+                    <div id="pointsGrid" class="grid grid-cols-5 sm:grid-cols-8 gap-2 max-h-[420px] overflow-y-auto p-1.5 bg-slate-950 rounded-xl border border-slate-800">
+                        <!-- Points 1 to 40 populated dynamically -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 bg-slate-800 border-t border-slate-700 flex justify-between items-center">
+                <span class="text-xs text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i> สามารถคลิกที่ปุ่มจุดเพื่อตรวจสอบค่า tolerance แยกแต่ละจุดได้</span>
+                <button onclick="closeModal()" class="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2 rounded-xl text-sm font-bold transition">
+                    ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APP LOGIC -->
+    <script>
+        // ================= GLOBAL STATE & MOCK DATA =================
+        let inspectionRecords = [];
+        let alarmLogs = [];
+        let activeSelectedPoint = 1;
+        let currentRecordInModal = null;
+
+        // 40 Point Definitions for KNUCKLE part
+        const pointDefinitions = [
+            { id: 1, name: "Bore Diameter A", nominal: 45.000, tol: 0.050, cx: 150, cy: 125 },
+            { id: 2, name: "Bore Roundness", nominal: 0.010, tol: 0.005, cx: 150, cy: 125 },
+            { id: 3, name: "Flange Flatness", nominal: 0.020, tol: 0.010, cx: 170, cy: 45 },
+            { id: 4, name: "Arm 1 Hole Pos X", nominal: 80.000, tol: 0.080, cx: 80, cy: 70 },
+            { id: 5, name: "Arm 1 Hole Pos Y", nominal: 70.000, tol: 0.080, cx: 80, cy: 70 },
+            { id: 6, name: "Arm 2 Hole Pos X", nominal: 230.000, tol: 0.080, cx: 230, cy: 80 },
+            { id: 7, name: "Arm 2 Hole Pos Y", nominal: 80.000, tol: 0.080, cx: 230, cy: 80 },
+            { id: 8, name: "Bottom Arm Pos X", nominal: 210.000, tol: 0.080, cx: 210, cy: 180 },
+            { id: 9, name: "Bottom Arm Pos Y", nominal: 180.000, tol: 0.080, cx: 210, cy: 180 },
+            { id: 10, name: "Steering Angle Pad", nominal: 32.500, tol: 0.200, cx: 250, cy: 130 },
+            ...Array.from({ length: 30 }, (_, i) => ({
+                id: i + 11,
+                name: `Point Spec #${i + 11}`,
+                nominal: (15.0 + (i % 7) * 2.5).toFixed(3) * 1,
+                tol: 0.050,
+                cx: 60 + ((i * 23) % 180),
+                cy: 50 + ((i * 17) % 140)
+            }))
+        ];
+
+        // Seed Mock Data
+        function initData() {
+            const robots = ["ROBOT-01", "ROBOT-02", "ROBOT-03"];
+            
+            // Seed 25 Inspection Records
+            for (let i = 1; i <= 25; i++) {
+                const isNg = i === 3 || i === 12;
+                const overallStatus = isNg ? "NG" : "OK";
+                const robotId = robots[i % 3];
+                const partNo = `KNC-2026-90${50 - i}`;
+                const jigNo = `JIG-${String.fromCharCode(65 + (i % 3))}${String((i % 5) + 1).padStart(2, '0')}`;
+                
+                const points = pointDefinitions.map(def => {
+                    let isPointNg = false;
+                    if (isNg && (def.id === 14 || def.id === 28)) {
+                        isPointNg = true;
+                    }
+                    const offset = isPointNg ? (def.tol * 1.8) : ((Math.random() - 0.5) * def.tol * 0.8);
+                    const measured = (parseFloat(def.nominal) + offset).toFixed(3) * 1;
+                    return {
+                        id: def.id,
+                        name: def.name,
+                        nominal: def.nominal,
+                        tol: def.tol,
+                        measured: measured,
+                        status: isPointNg ? "NG" : "OK"
+                    };
+                });
+
+                inspectionRecords.push({
+                    id: i,
+                    timestamp: `2026-10-23 17:${String(20 - Math.floor(i/2)).padStart(2, '0')}:${String((i * 11) % 60).padStart(2, '0')}`,
+                    partNo: partNo,
+                    jigNo: jigNo,
+                    robot: robotId,
+                    status: overallStatus,
+                    okCount: points.filter(p => p.status === 'OK').length,
+                    ngCount: points.filter(p => p.status === 'NG').length,
+                    points: points
+                });
+            }
+
+            // Seed Mock Alarms
+            alarmLogs = [
+                { id: 1, time: "2026-10-23 16:42:10", station: "STATION-3", code: "E-4012", desc: "Cabinet 3 High Temperature Alert (>41.5°C)", severity: "WARNING", duration: "12m 40s", status: "Active" },
+                { id: 2, time: "2026-10-23 15:10:05", station: "STATION-1", code: "E-1002", desc: "OMRON RFID Reader V680S Communication Retry", severity: "WARNING", duration: "02m 15s", status: "Resolved" },
+                { id: 3, time: "2026-10-23 14:05:30", station: "STATION-3", code: "E-3088", desc: "Keyence LJ-S040 Sensor Lens Dust Warning", severity: "WARNING", duration: "18m 00s", status: "Resolved" },
+                { id: 4, time: "2026-10-23 11:22:15", station: "STATION-2", code: "E-2010", desc: "NACHI MZ12 Servo Motor Load Peak (>85%)", severity: "CRITICAL", duration: "05m 10s", status: "Resolved" },
+                { id: 5, time: "2026-10-23 09:15:00", station: "PLC", code: "E-0050", desc: "Keyence KV-8000 Cloud Database Sync Lag", severity: "WARNING", duration: "01m 45s", status: "Resolved" },
+                { id: 6, time: "2026-10-22 17:30:12", station: "STATION-1", code: "E-1055", desc: "Safety Light Curtain Interrupted", severity: "CRITICAL", duration: "08m 20s", status: "Resolved" }
+            ];
+        }
+
+        // NAVIGATION TAB SWITCHER
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-isuzu-red', 'text-white', 'shadow-lg');
+                btn.classList.add('bg-slate-800', 'text-slate-300');
+            });
+
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            activeNav.classList.remove('bg-slate-800', 'text-slate-300');
+            activeNav.classList.add('bg-isuzu-red', 'text-white', 'shadow-lg');
+
+            if (tabId === 'tab5') {
+                renderAlarms();
+            }
+        }
+
+        // Live Clock
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('liveClock').textContent = now.toLocaleTimeString('th-TH');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // RENDER TABLES
+        function renderTables() {
+            // Recent Logs Table (Tab 1)
+            const recentContainer = document.getElementById('recentLogsTable');
+            recentContainer.innerHTML = '';
+
+            inspectionRecords.slice(0, 5).forEach(record => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/50 transition cursor-pointer";
+                tr.onclick = () => openModalWithRecord(record);
+
+                const statusBadge = record.status === 'OK' 
+                    ? `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-0.5 rounded-full font-bold"><i class="fa-solid fa-circle-check"></i> PASSED (OK)</span>`
+                    : `<span class="bg-red-500/20 text-red-400 border border-red-500/30 text-xs px-2.5 py-0.5 rounded-full font-bold"><i class="fa-solid fa-circle-xmark"></i> FAILED (NG)</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-3 font-mono text-xs text-slate-300">${record.timestamp}</td>
+                    <td class="p-3 font-mono font-bold text-white">${record.partNo}</td>
+                    <td class="p-3 font-mono text-slate-300">${record.jigNo}</td>
+                    <td class="p-3 text-xs text-blue-400 font-semibold">${record.robot}</td>
+                    <td class="p-3 text-center font-mono">
+                        <span class="text-xs text-emerald-400 font-bold">${record.okCount} OK</span> / 
+                        <span class="text-xs text-red-400 font-bold">${record.ngCount} NG</span>
+                    </td>
+                    <td class="p-3 text-center">${statusBadge}</td>
+                    <td class="p-3 text-right">
+                        <button class="bg-slate-700 hover:bg-slate-600 text-white text-xs px-3 py-1 rounded-lg font-semibold">
+                            ดูข้อมูล 40 จุด
+                        </button>
+                    </td>
+                `;
+                recentContainer.appendChild(tr);
+            });
+
+            applyFilters();
+        }
+
+        // Apply Filters (Tab 3)
+        function applyFilters() {
+            const robotFilter = document.getElementById('filterRobot').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+            const container = document.getElementById('historyTableBody');
+            container.innerHTML = '';
+
+            const filtered = inspectionRecords.filter(r => {
+                const matchRobot = robotFilter === 'ALL' || r.robot === robotFilter;
+                const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
+                return matchRobot && matchStatus;
+            });
+
+            filtered.forEach(record => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/50 transition cursor-pointer";
+                tr.onclick = () => openModalWithRecord(record);
+
+                const statusBadge = record.status === 'OK' 
+                    ? `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2 py-0.5 rounded font-bold">OK</span>`
+                    : `<span class="bg-red-500/20 text-red-400 border border-red-500/30 text-xs px-2 py-0.5 rounded font-bold">NG</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-3 font-mono text-xs text-slate-300">${record.timestamp}</td>
+                    <td class="p-3 font-mono font-bold text-white">${record.partNo}</td>
+                    <td class="p-3 font-mono text-slate-300">${record.jigNo}</td>
+                    <td class="p-3 text-xs text-blue-400 font-semibold">${record.robot}</td>
+                    <td class="p-3 text-center font-mono text-xs">
+                        <span class="text-emerald-400 font-bold">${record.okCount} OK</span> / <span class="text-red-400 font-bold">${record.ngCount} NG</span>
+                    </td>
+                    <td class="p-3 text-center">${statusBadge}</td>
+                    <td class="p-3 text-center">
+                        <button class="text-blue-400 hover:text-blue-300 text-xs font-semibold">
+                            รายละเอียด &rarr;
+                        </button>
+                    </td>
+                `;
+                container.appendChild(tr);
+            });
+        }
+
+        // Search System (Tab 2)
+        function fillSearch(val) {
+            document.getElementById('searchInput').value = val;
+            performSearch();
+        }
+
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.trim().toUpperCase();
+            const resultsContainer = document.getElementById('searchResults');
+            const cardsContainer = document.getElementById('searchCardsContainer');
+            cardsContainer.innerHTML = '';
+
+            if (!query) return;
+
+            const matches = inspectionRecords.filter(r => 
+                r.partNo.toUpperCase().includes(query) || r.jigNo.toUpperCase().includes(query)
+            );
+
+            resultsContainer.classList.remove('hidden');
+
+            if (matches.length === 0) {
+                cardsContainer.innerHTML = `
+                    <div class="col-span-2 text-center py-8 text-slate-400 glass-panel rounded-xl">
+                        <i class="fa-solid fa-triangle-exclamation text-3xl text-amber-400 mb-2"></i>
+                        <p>ไม่พบข้อมูลชิ้นงานสำหรับ "${query}" ในระบบ Database</p>
+                    </div>
+                `;
+                return;
+            }
+
+            matches.forEach(rec => {
+                const card = document.createElement('div');
+                card.className = "bg-slate-800/80 border border-slate-700 rounded-xl p-5 hover:border-slate-500 transition space-y-3 shadow-lg";
+                
+                const isOk = rec.status === 'OK';
+                const statusBadge = isOk 
+                    ? `<span class="bg-emerald-500 text-slate-950 font-extrabold px-3 py-1 rounded-full text-xs">PASSED (OK)</span>`
+                    : `<span class="bg-red-500 text-white font-extrabold px-3 py-1 rounded-full text-xs">FAILED (NG)</span>`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-xs text-slate-400">PART NUMBER:</span>
+                            <div class="text-xl font-mono font-bold text-white">${rec.partNo}</div>
+                        </div>
+                        ${statusBadge}
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs text-slate-300 bg-slate-900/60 p-3 rounded-lg font-mono">
+                        <div>Jig ID: <span class="text-white">${rec.jigNo}</span></div>
+                        <div>Station: <span class="text-blue-400">${rec.robot}</span></div>
+                        <div class="col-span-2">เวลาบันทึก: <span class="text-slate-400">${rec.timestamp}</span></div>
+                    </div>
+                    <div class="flex justify-between items-center text-xs pt-1">
+                        <span class="text-slate-400">สรุปการวัด: <strong class="text-emerald-400">${rec.okCount} OK</strong>, <strong class="text-red-400">${rec.ngCount} NG</strong></span>
+                        <button onclick='openModalWithRecord(${JSON.stringify(rec)})' class="bg-isuzu-red hover:bg-isuzu-darkred text-white px-4 py-2 rounded-lg font-bold transition">
+                            <i class="fa-solid fa-list text-xs mr-1"></i> ดูรายละเอียด 40 จุด
+                        </button>
+                    </div>
+                `;
+                cardsContainer.appendChild(card);
+            });
+        }
+
+        // Render Alarm Table (Tab 5)
+        function renderAlarms() {
+            const stFilter = document.getElementById('alarmStationFilter').value;
+            const sevFilter = document.getElementById('alarmSeverityFilter').value;
+            const container = document.getElementById('alarmTableBody');
+            container.innerHTML = '';
+
+            const filtered = alarmLogs.filter(a => {
+                const matchStation = stFilter === 'ALL' || a.station === stFilter;
+                const matchSeverity = sevFilter === 'ALL' || a.severity === sevFilter;
+                return matchStation && matchSeverity;
+            });
+
+            document.getElementById('alarmCountBadge').textContent = `รวม ${filtered.length} รายการ`;
+
+            filtered.forEach(alarm => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/50 transition";
+
+                const sevBadge = alarm.severity === 'CRITICAL'
+                    ? `<span class="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded font-bold">CRITICAL</span>`
+                    : `<span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-bold">WARNING</span>`;
+
+                const statusBadge = alarm.status === 'Active'
+                    ? `<span class="text-amber-400 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> กำลังเกิดขึ้น</span>`
+                    : `<span class="text-emerald-400"><i class="fa-solid fa-check mr-1"></i> แก้ไขแล้ว</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-300">${alarm.time}</td>
+                    <td class="p-3 font-bold text-blue-400">${alarm.station}</td>
+                    <td class="p-3 font-bold text-slate-200">${alarm.code}</td>
+                    <td class="p-3 text-slate-200 font-sans">${alarm.desc}</td>
+                    <td class="p-3 text-center">${sevBadge}</td>
+                    <td class="p-3 text-center text-slate-400">${alarm.duration}</td>
+                    <td class="p-3 text-right">${statusBadge}</td>
+                `;
+                container.appendChild(tr);
+            });
+        }
+
+        // Modal & Point Matrix Logic
+        function openRealtimeModal(robotId) {
+            const rec = inspectionRecords.find(r => r.robot === robotId) || inspectionRecords[0];
+            openModalWithRecord(rec);
+        }
+
+        function openModalWithRecord(record) {
+            currentRecordInModal = record;
+            document.getElementById('mPartNo').textContent = record.partNo;
+            document.getElementById('mJigNo').textContent = record.jigNo;
+            document.getElementById('mRobot').textContent = record.robot;
+            document.getElementById('mTimestamp').textContent = record.timestamp;
+
+            const badge = document.getElementById('mOverallBadge');
+            if (record.status === 'OK') {
+                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-emerald-500 text-slate-950";
+                badge.textContent = "PASSED (OK)";
+            } else {
+                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-red-500 text-white";
+                badge.textContent = "FAILED (NG)";
+            }
+
+            renderPointsGrid(record.points);
+            selectPoint(1);
+
+            document.getElementById('detailModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.add('hidden');
+        }
+
+        function renderPointsGrid(points) {
+            const grid = document.getElementById('pointsGrid');
+            grid.innerHTML = '';
+
+            points.forEach(p => {
+                const btn = document.createElement('button');
+                btn.id = `pt-btn-${p.id}`;
+                const isOk = p.status === 'OK';
+
+                btn.className = `p-2 rounded-lg border flex flex-col items-center justify-center transition hover:scale-105 font-mono text-xs ${
+                    isOk 
+                        ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:border-emerald-400' 
+                        : 'bg-red-950/50 border-red-500 text-red-300 font-bold hover:border-red-400 animate-pulse'
+                }`;
+
+                btn.onclick = () => selectPoint(p.id);
+
+                btn.innerHTML = `
+                    <span class="text-[10px] text-slate-400">P${String(p.id).padStart(2, '0')}</span>
+                    <span class="font-bold my-0.5 text-sm">${p.measured}</span>
+                    <span class="text-[9px] ${isOk ? 'text-emerald-400' : 'text-red-400'}">${p.status}</span>
+                `;
+                grid.appendChild(btn);
+            });
+        }
+
+        function selectPoint(pointId) {
+            activeSelectedPoint = pointId;
+            if (!currentRecordInModal) return;
+
+            const pointData = currentRecordInModal.points.find(p => p.id === pointId);
+            const pointDef = pointDefinitions.find(d => d.id === pointId) || pointDefinitions[0];
+
+            document.querySelectorAll('#pointsGrid button').forEach(btn => btn.classList.remove('ring-2', 'ring-blue-400', 'scale-105'));
+            const activeBtn = document.getElementById(`pt-btn-${pointId}`);
+            if (activeBtn) activeBtn.classList.add('ring-2', 'ring-blue-400', 'scale-105');
+
+            document.getElementById('pdTitle').textContent = `Point #${pointData.id} : ${pointData.name}`;
+            document.getElementById('pdNominal').textContent = `${pointData.nominal.toFixed(3)} mm`;
+            document.getElementById('pdTolerance').textContent = `± ${pointData.tol.toFixed(3)} mm`;
+
+            const measuredEl = document.getElementById('pdMeasured');
+            measuredEl.textContent = `${pointData.measured.toFixed(3)} mm`;
+
+            const statusEl = document.getElementById('pdStatus');
+            if (pointData.status === 'OK') {
+                statusEl.className = "px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                statusEl.textContent = "OK (ผ่านเกณฑ์)";
+                measuredEl.className = "font-mono text-xl font-extrabold text-emerald-400";
+            } else {
+                statusEl.className = "px-2.5 py-0.5 rounded text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30";
+                statusEl.textContent = "NG (ตกเกณฑ์)";
+                measuredEl.className = "font-mono text-xl font-extrabold text-red-400";
+            }
+
+            const targetDot = document.getElementById('svgTargetDot');
+            const targetCircle = document.getElementById('svgTargetCircle');
+            targetDot.setAttribute('cx', pointDef.cx);
+            targetDot.setAttribute('cy', pointDef.cy);
+            targetCircle.setAttribute('cx', pointDef.cx);
+            targetCircle.setAttribute('cy', pointDef.cy);
+        }
+
+        // CSV Exporters
+        function exportToCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Timestamp,Part No,Jig No,Robot Station,OK Points,NG Points,Overall Status\n";
+
+            inspectionRecords.forEach(r => {
+                csvContent += `${r.timestamp},${r.partNo},${r.jigNo},${r.robot},${r.okCount},${r.ngCount},${r.status}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `ISUZU_KNUCKLE_Inspection_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportAlarmCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Timestamp,Station,Code,Description,Severity,Duration,Status\n";
+
+            alarmLogs.forEach(a => {
+                csvContent += `${a.time},${a.station},${a.code},"${a.desc}",${a.severity},${a.duration},${a.status}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `ISUZU_Alarm_History_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Realtime Simulation Progress for Robot Station 1
+        let r1Progress = 35;
+        setInterval(() => {
+            r1Progress = (r1Progress % 40) + 1;
+            const bar = document.getElementById('r1-progress-bar');
+            const num = document.getElementById('r1-progress-num');
+            if (bar && num) {
+                const percent = Math.round((r1Progress / 40) * 100);
+                bar.style.width = `${percent}%`;
+                num.textContent = r1Progress;
+            }
+        }, 1100);
+
+        // App Launch
+        window.onload = function() {
+            initData();
+            renderTables();
+        };
+    </script>
+</body>
+</html>
